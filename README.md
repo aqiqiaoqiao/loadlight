@@ -1,72 +1,48 @@
-# BusyLight 🟢🔴
+# LoadLight
 
-macOS 菜单栏 CPU / GPU 负载指示灯。高负载时红灯呼吸，恢复正常后强提醒。
-
-![preview](preview.png)
+macOS 菜单栏 CPU/GPU 负载指示灯。闲置 🟢 绿灯，高负载 🔴 红灯呼吸。
 
 ## 功能
 
-- **实时监控**：每 2 秒采样 CPU（`host_statistics`）和 GPU（IOKit IOAccelerator）使用率
-- **红灯呼吸**：CPU > 65% 或 GPU > 70% → 菜单栏红灯呼吸动画（消抖 3 次 / 6 秒）
-- **绿色静态**：负载正常 → 绿色常亮
-- **强提醒**：红灯持续 ≥ 1 分钟后恢复绿色时触发：
-  - 🔊 清脆提示音 3 连响（"Glass" 系统音效，满音量）
-  - 🔔 系统通知横幅 "High load has ended"
-- **菜单信息**：点击菜单栏图标查看实时 CPU / GPU 百分比
+- 实时监控 CPU 和 GPU 使用率
+- CPU > 70% 或 GPU > 70% 触发红灯呼吸动画
+- 负载回落自动恢复绿灯（连续 3 次采样确认，避免抖动）
+- 点击菜单栏图标查看详细读数
+- macOS 13+
 
 ## 安装
 
-### 直接下载
+```bash
+git clone https://github.com/aqiqiaoqiao/loadlight.git
+cd loadlight
+./build.sh --run
+```
 
-从 [Releases](../../releases) 下载 `BusyLight.app`，拖入 `/Applications` 运行。
-
-### 从源码构建
+或手动构建：
 
 ```bash
-git clone https://github.com/aqiqiaoqiao/BusyLight.git
-cd BusyLight
-bash build.sh --run
+swift build -c release
+cp .build/release/LoadLight /Applications/
 ```
 
-> 需要 Xcode 或 Swift 5.9+ 命令行工具。构建产物在 `dist/BusyLight.app`。
+启动后会在菜单栏右侧出现绿色圆点。
 
-## 技术栈
+## 使用
 
-- Swift 5.9 / AppKit
-- macOS 13+（Apple Silicon / Intel）
-- IOKit（GPU 性能统计）
-- UserNotifications（系统通知）
-- SPM 构建
+- **绿色常亮**：系统空闲
+- **红色呼吸**：CPU 或 GPU 超过 70%
+- **点击图标**：弹出菜单显示 CPU/GPU 精确读数和当前状态
 
-## 项目结构
+菜单栏提示文本也会实时显示负载百分比。
 
-```
-Sources/BusyLight/
-├── main.swift              # 入口（.accessory 激活策略，无 Dock 图标）
-├── AppDelegate.swift       # 状态栏、菜单、呼吸动画、提示音/通知
-├── MonitorEngine.swift     # CPU/GPU 轮询引擎 + 消抖
-└── LightView.swift         # Core Graphics 径向渐变图标
-Scripts/
-└── generate_icon.swift     # 运行时生成 app icon
-build.sh                    # 一键构建 + .app 打包
-```
+## 技术细节
 
-## 工作原理
+- Swift 5.9 + AppKit，无第三方依赖
+- CPU 采样：`host_statistics()` 获取 kernel ticks
+- GPU 采样：IOKit `IOAccelerator` 服务读取 `Device Utilization %`
+- 图标：24×24 NSImage，径向渐变 + 环形光晕，呼吸动画 30fps
+- 不对称去抖：绿→红即时响应，红→绿需连续 3 次每 1 秒确认
 
-```
-MonitorEngine (2s 轮询)
-    │
-    ├─ CPU: host_statistics() → 用户+系统+空闲 tick 差值
-    ├─ GPU: IOKit IOAccelerator → "Device Utilization %"
-    │
-    ▼
-AppDelegate.stateChanged()
-    │
-    ├─ busy → startBreathing()  (fade-in 0.5s → hold 0.5s → fade-out 0.5s)
-    ├─ idle → stopBreathing()   (静态绿色图标)
-    └─ red≥1min→green → playAlertSound() + postAlertNotification()
-```
+## 退出
 
-## License
-
-MIT
+点击菜单栏图标 → Quit，或 `pkill LoadLight`。
